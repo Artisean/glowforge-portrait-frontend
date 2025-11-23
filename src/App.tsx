@@ -1,35 +1,83 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from "react";
+import "./App.css";
+import {
+  aiAnalyzePhoto,
+  type AiAnalyzePhotoResponse,
+} from "./lib/api";
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<AiAnalyzePhotoResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleTestClick() {
+    setLoading(true);
+    setResult(null);
+    setError(null);
+
+    try {
+      // Dummy data URL – backend only checks that it's a non-empty string.
+      const response = await aiAnalyzePhoto(
+        "data:image/png;base64,stub",
+        { profile: "portrait" }
+      );
+
+      setResult(response);
+      console.log("aiAnalyzePhoto response:", response);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : String(err);
+      setError(message);
+      console.error("aiAnalyzePhoto error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
+    <div className="App" style={{ padding: "1.5rem", fontFamily: "system-ui" }}>
+      <h1>Glowforge Portrait Engraver – Frontend</h1>
+      <p>
+        Temporary test harness to call the backend <code>ai-analyze-photo</code> stub.
       </p>
-    </>
-  )
+
+      <button onClick={handleTestClick} disabled={loading}>
+        {loading ? "Calling backend…" : "Test aiAnalyzePhoto"}
+      </button>
+
+      {error && (
+        <pre
+          style={{
+            marginTop: "1rem",
+            padding: "0.75rem",
+            border: "1px solid #f99",
+            background: "#311",
+            color: "#fdd",
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          Error: {error}
+        </pre>
+      )}
+
+      {result && (
+        <pre
+          style={{
+            marginTop: "1rem",
+            padding: "0.75rem",
+            border: "1px solid #444",
+            background: "#111",
+            color: "#ddd",
+            maxHeight: "300px",
+            overflow: "auto",
+            textAlign: "left",
+          }}
+        >
+          {JSON.stringify(result, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;
