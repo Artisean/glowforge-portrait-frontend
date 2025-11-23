@@ -5,19 +5,83 @@ export interface AiAnalyzePhotoOptions {
   profile?: string;
 }
 
-// Minimal AiAnalysisResult mirror. We can refine this later to match Strategy docs.
-export interface AiAnalysisResult {
-  faces?: unknown;
-  backgroundMask?: unknown;
-  globalAdjustments?: unknown;
-  notes?: string[];
+/**
+ * Normalized face region used by the engraving pipeline.
+ * All coordinates are 0–1 relative to the image size.
+ */
+export interface FaceRegion {
+  x: number; // left, 0..1
+  y: number; // top, 0..1
+  width: number; // width, 0..1
+  height: number; // height, 0..1
+  notes?: string;
+  confidence?: number; // 0..1
+}
 
-  // Engraving-aware optional fields (names match the backend stub).
-  halftone?: unknown;
-  highlightWarning?: unknown;
-  shadowWarning?: unknown;
-  dotGainRisk?: unknown;
-  recommendedEngraveSettings?: unknown;
+/**
+ * Suggested halftone settings for a typical portrait-on-wood engraving.
+ * Mirrors the backend stub fields.
+ */
+export interface HalftoneSuggestion {
+  outputDpi: number;
+  lpi: number;
+  angleDeg: number;
+  shape: "line" | "dot" | "other" | string;
+}
+
+/**
+ * Generic warning about highlight or shadow ranges.
+ */
+export interface RangeWarning {
+  hasIssue: boolean;
+  message: string;
+}
+
+/**
+ * Dot gain risk for the engraving.
+ */
+export type DotGainRiskLevel = "low" | "medium" | "high" | string;
+
+export interface DotGainRisk {
+  level: DotGainRiskLevel;
+  message: string;
+}
+
+/**
+ * Suggested Glowforge-style engrave settings for a photo on wood.
+ * Mirrors the backend stub's recommendedEngraveSettings structure.
+ */
+export interface RecommendedEngraveSettings {
+  speed: number;
+  power: number;
+  lpi: number;
+  passes: number;
+  focus: "auto" | "manual" | string;
+}
+
+/**
+ * Core AI analysis result used throughout the wizard.
+ * Engraving-aware fields are optional and can be refined over time.
+ * This mirrors the backend stub so TypeScript understands all the fields
+ * that App.tsx reads (notes, halftone, warnings, dot gain, settings, etc.).
+ */
+export interface AiAnalysisResult {
+  // Core fields
+  faces: FaceRegion[];
+  backgroundMask: unknown | null;
+  globalAdjustments: {
+    exposure: number;
+    contrast: number;
+    midtoneBoost: number;
+  };
+  notes: string[];
+
+  // Optional engraving-aware fields (ADR-009)
+  halftone?: HalftoneSuggestion | null;
+  highlightWarning?: RangeWarning | null;
+  shadowWarning?: RangeWarning | null;
+  dotGainRisk?: DotGainRisk | null;
+  recommendedEngraveSettings?: RecommendedEngraveSettings | null;
 
   // Allow future expansion without breaking callers.
   [key: string]: unknown;
