@@ -40,6 +40,9 @@ function App() {
   const [currentStepId, setCurrentStepId] = useState<StepId>("upload");
   const currentIndex = STEPS.findIndex((s) => s.id === currentStepId);
 
+  // Shared image state for the wizard (starts with no image).
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
+
   // Backend test harness state (still useful while we build UI)
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiAnalyzePhotoResponse | null>(null);
@@ -67,11 +70,12 @@ function App() {
     setError(null);
 
     try {
-      // Dummy data URL – backend only checks that it's a non-empty string.
-      const response = await aiAnalyzePhoto(
-        "data:image/png;base64,stub",
-        { profile: "portrait" }
-      );
+      const payloadImageDataUrl =
+        imageDataUrl ?? "data:image/png;base64,stub";
+
+      const response = await aiAnalyzePhoto(payloadImageDataUrl, {
+        profile: "portrait",
+      });
 
       setResult(response);
       console.log("aiAnalyzePhoto response:", response);
@@ -88,7 +92,12 @@ function App() {
   function renderStepContent() {
     switch (currentStepId) {
       case "upload":
-        return <UploadStep />;
+        return (
+          <UploadStep
+            imageDataUrl={imageDataUrl}
+            onImageDataUrlChange={setImageDataUrl}
+          />
+        );
       case "crop":
         return <CropStep />;
       case "blackAndWhite":
