@@ -3,6 +3,7 @@ import "./App.css";
 import {
   aiAnalyzePhoto,
   type AiAnalyzePhotoResponse,
+  type AiAnalysisResult,
 } from "./lib/api";
 import { UploadStep } from "./steps/UploadStep";
 import { CropStep } from "./steps/CropStep";
@@ -36,6 +37,91 @@ const STEPS: StepConfig[] = [
   { id: "export", label: "7. Export" },
 ];
 
+function AnalysisSummary({ analysis }: { analysis: AiAnalysisResult }) {
+  const {
+    notes,
+    halftone,
+    highlightWarning,
+    shadowWarning,
+    dotGainRisk,
+    recommendedEngraveSettings,
+  } = analysis;
+
+  return (
+    <div
+      style={{
+        marginTop: "1.5rem",
+        padding: "1rem",
+        borderRadius: "0.75rem",
+        border: "1px solid #444",
+        background: "#151515",
+        textAlign: "left",
+      }}
+    >
+      <h4 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
+        Analysis summary
+      </h4>
+
+      {Array.isArray(notes) && notes.length > 0 && (
+        <div style={{ marginBottom: "0.75rem" }}>
+          <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
+            Notes:
+          </div>
+          <ul style={{ paddingLeft: "1.25rem", margin: 0 }}>
+            {notes.map((note, idx) => (
+              <li key={idx}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {halftone && (
+        <div style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600 }}>Halftone suggestion:</div>
+          <div>
+            {halftone.outputDpi} dpi, {halftone.lpi} LPI, angle{" "}
+            {halftone.angleDeg}°, shape "{String(halftone.shape)}"
+          </div>
+        </div>
+      )}
+
+      {(highlightWarning?.hasIssue || shadowWarning?.hasIssue) && (
+        <div style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600 }}>Warnings:</div>
+          <ul style={{ paddingLeft: "1.25rem", margin: 0 }}>
+            {highlightWarning?.hasIssue && (
+              <li>{highlightWarning.message}</li>
+            )}
+            {shadowWarning?.hasIssue && <li>{shadowWarning.message}</li>}
+          </ul>
+        </div>
+      )}
+
+      {dotGainRisk && (
+        <div style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600 }}>Dot gain risk:</div>
+          <div>
+            Level: {dotGainRisk.level} – {dotGainRisk.message}
+          </div>
+        </div>
+      )}
+
+      {recommendedEngraveSettings && (
+        <div>
+          <div style={{ fontWeight: 600 }}>Recommended engrave settings:</div>
+          <div>
+            Speed {recommendedEngraveSettings.speed}, power{" "}
+            {recommendedEngraveSettings.power}, {recommendedEngraveSettings.lpi}{" "}
+            LPI, {recommendedEngraveSettings.passes} pass
+            {recommendedEngraveSettings.passes !== 1 ? "es" : ""},{" "}
+            focus {recommendedEngraveSettings.focus}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function App() {
   const [currentStepId, setCurrentStepId] = useState<StepId>("upload");
   const currentIndex = STEPS.findIndex((s) => s.id === currentStepId);
@@ -43,7 +129,7 @@ function App() {
   // Shared image state for the wizard (starts with no image).
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
 
-  // Backend test harness state (still useful while we build UI)
+  // Backend test harness / analysis state
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AiAnalyzePhotoResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +174,11 @@ function App() {
       setLoading(false);
     }
   }
+
+  const analysis =
+    result && result.success ? result.analysis : null;
+  const backendError =
+    result && !result.success ? result.error : null;
 
   function renderStepContent() {
     switch (currentStepId) {
@@ -166,14 +257,23 @@ function App() {
         })}
       </nav>
 
-      <main style={{ flex: 1, maxWidth: "960px", margin: "0 auto", width: "100%" }}>
+      <main
+        style={{
+          flex: 1,
+          maxWidth: "960px",
+          margin: "0 auto",
+          width: "100%",
+        }}
+      >
         {renderStepContent()}
 
         {currentStepId === "upload" && (
           <section style={{ marginTop: "2rem" }}>
-            <h3>Developer Backend Test</h3>
+            <h3>Analyze Photo (Backend Stub)</h3>
             <p style={{ opacity: 0.8 }}>
-              Temporary harness to call the backend <code>ai-analyze-photo</code> stub.
+              Calls the backend <code>ai-analyze-photo</code> endpoint using the
+              uploaded image (or a stub if none is selected), then shows a
+              summary of the suggested engraving prep.
             </p>
             <button
               type="button"
@@ -190,7 +290,7 @@ function App() {
                 fontWeight: 600,
               }}
             >
-              {loading ? "Calling backend…" : "Test aiAnalyzePhoto"}
+              {loading ? "Analyzing…" : "Analyze photo"}
             </button>
 
             {error && (
@@ -208,22 +308,22 @@ function App() {
               </pre>
             )}
 
-            {result && (
+            {backendError && (
               <pre
                 style={{
                   marginTop: "1rem",
                   padding: "0.75rem",
-                  border: "1px solid #444",
-                  background: "#111",
-                  color: "#ddd",
-                  maxHeight: "300px",
-                  overflow: "auto",
-                  textAlign: "left",
+                  border: "1px solid #f99",
+                  background: "#311",
+                  color: "#fdd",
+                  whiteSpace: "pre-wrap",
                 }}
               >
-                {JSON.stringify(result, null, 2)}
+                Backend error ({backendError.code}): {backendError.message}
               </pre>
             )}
+
+            {analysis && <AnalysisSummary analysis={analysis} />}
           </section>
         )}
       </main>
