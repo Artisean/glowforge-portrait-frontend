@@ -1,77 +1,187 @@
-# AGENTS – glowforge-portrait-frontend
+# AGENTS – Frontend Wizard (`glowforge-portrait-frontend`)
 
-This file defines how AI agents (ChatGPT, Codex, and similar tools) must work with this frontend repo. It builds on the project-level Strategy docs and AGENTS.md, but adds frontend-specific guardrails.
+This file defines how AI assistants (ChatGPT, Codex, etc.) are expected to behave when working in this frontend repo.
 
-## 1. Scope and purpose
+This repo implements the Vite React/TypeScript wizard for the Glowforge Portrait Engraver. Project-level architecture, contracts, and workflows are defined in the main project docs (`01`–`07` markdown files and ADRs) and the project-level `AGENTS.md`. If there is ever a conflict, the project-level docs and `AGENTS.md` win; update this file to match them.
 
-- This repo is the Vite React/TypeScript frontend for the Glowforge Portrait Engraver app.
-- It implements the multi-step wizard UI:
-  - Upload → Crop → Black & White → Dodge & Burn → Levels/Curves → Halftone → Export.
-- It must not contain provider-specific AI logic (no direct OpenAI or other AI provider calls).
-- All AI-related behavior flows through a single abstraction in `src/lib/api.ts`, which calls the backend’s `POST /api/ai-analyze-photo` endpoint.
+---
 
-## 2. Backend contract and interactions
+## 1. Purpose of this repo
 
-- The backend exposes `POST /api/ai-analyze-photo` and returns a JSON envelope:
+- Implement the multi-step wizard:
+  - Upload & prep → Crop → Black & White → Dodge & Burn → Levels/Curves → Halftone → Export.
+- Manage client-side state:
+  - Current step.
+  - Image state (original and edited).
+  - AI analysis results consumed from the backend.
+- Display AI hints and engraving summaries in a way that:
+  - Feels helpful and understandable.
+  - Is clearly “advice and starting points,” not guaranteed-perfect settings.
 
-  - Success:
-    `{ "success": true, "analysis": { ...AiAnalysisResult } }`
-  - Error:
-    `{ "success": false, "error": { "code": "...", "message": "..." } }`
+This repo must not contain provider-specific AI logic. All AI calls go through the backend.
 
-- `AiAnalysisResult` includes:
-  - Core image-prep fields (faces, backgroundMask, globalAdjustments, notes).
-  - Engraving-aware fields (halftone, highlight/shadow warnings, dotGainRisk, recommendedEngraveSettings), as defined in the Strategy docs.
+---
 
-Rules for agents:
+## 2. AI gateway client and contracts
 
-- Do not call the backend directly from components or hooks.
-- All backend calls must go through `src/lib/api.ts` (or a tiny wrapper that imports it).
-- Do not change the HTTP envelope shape or remove fields from AiAnalysisResult. Type changes must remain backward compatible with the backend and Strategy docs.
+### 2.1 `src/lib/api.ts`
 
-## 3. Allowed vs forbidden changes
+This file is the single HTTP client for `POST /api/ai-analyze-photo`:
 
-Allowed (with review):
+- Responsibilities:
+  - Read `import.meta.env.VITE_API_BASE_URL`.
+  - Send `{ imageDataUrl, options }` as JSON to `/api/ai-analyze-photo`.
+  - Parse the response into the shared envelope:
+    - `success: true` with `analysis: AiAnalysisResult`.
+    - `success: false` with `error: { code, message }`.
+- Rules:
+  - Components and hooks must not call `fetch` directly to the backend for AI analysis.
+  - Any changes to the request/response shape must be driven by Strategy and ADR updates.
 
-- Implementing or refactoring React components in `src/components` and `src/steps`.
-- Adding or adjusting TypeScript types under `src/lib` or `src/types` that mirror backend contracts.
-- Wiring `aiAnalyzePhoto` calls in `src/lib/api.ts` and consuming them via hooks or components.
-- Improving UI/UX of the wizard in small, focused steps.
-- Small refactors that improve clarity without changing behavior.
+### 2.2 `src/hooks/useAiAnalysis.ts`
 
-Forbidden (unless explicitly requested):
+This hook wraps `aiAnalyzePhoto` and centralizes frontend analysis state:
 
-- Calling OpenAI or any external AI provider directly from this repo.
-- Bypassing `src/lib/api.ts` when talking to the backend.
-- Changing the `{ success, analysis?, error? }` envelope or removing AiAnalysisResult fields.
-- Introducing complex new frameworks (state management, routing) without explicit approval.
-- Large, sweeping, multi-file rewrites in a single commit.
+- Manages:
+  - `loading: boolean`
+  - `result: AiAnalyzePhotoResponse | null`
+  - `error: string | null`
+- Exposes:
+  - `runAnalysis(imageDataUrl: string, options?) => Promise<void>`
 
-## 4. Git and workflow expectations
+UI-level components should use this hook for AI calls instead of reimplementing envelope handling or error mapping.
 
-- Default branch is `main`.
-- Preferred workflow:
-  - Make small, focused changes.
-  - Run `npm run dev` (and any tests) before committing.
-  - Use clear commit messages, e.g.:
-    - `Add api.ts with aiAnalyzePhoto client`
-    - `Create basic wizard step shell`
-- Feature branches are optional; use them only for larger, clearly scoped changes.
+### 2.3 `AiAnalysisResult` types
 
-Agents must:
+Frontend types (either in `src/lib/api.ts` or a dedicated `src/types/ai.ts`) must mirror the contract defined in docs:
 
-- Keep diffs small and reviewable.
-- Avoid reformatting unrelated files or applying broad stylistic changes.
-- Respect existing naming conventions and file layout unless the task explicitly says otherwise.
+- Core fields:
+  - `faces`, `backgroundMask`, `globalAdjustments`, `notes: string[]`, etc.
+- Engraving-aware optional fields:
+  - `halftone`
+  - `highlightWarning`
+  - `shadowWarning`
+  - `dotGainRisk`
+  - `recommendedEngraveSettings`
 
-## 5. Codex-specific notes
+Rules:
 
-For Codex and similar “hands on the repo” agents:
+- Treat all engraving-aware fields as optional:
+  - Always check for existence before use.
+  - Render “not available” states gracefully when fields are missing.
+- Do not rename or remove these fields without a project-level contract change.
+- When new fields are added at the contract level:
+  - Update the frontend types to include them as optional.
+  - Only use them after docs and backend have been updated.
 
-- On session start:
-  - First read this `AGENTS.md`.
-  - Summarize what this repo is for, what constraints apply, and how you will keep diffs small.
-- Do not modify files in the first response of a new session; wait for a specific task.
-- Do not add or remove dependencies without an explicit instruction.
-- Do not bypass `src/lib/api.ts` when talking to the backend.
-- If a requested change appears to conflict with this file or the project-level Strategy docs, ask for clarification instead of guessing.
+---
+
+## 3. What AI agents may do in this repo
+
+Allowed changes include:
+
+- Layout and wizard components:
+  - `App.tsx` and step components (`UploadStep`, `CropStep`, `BlackAndWhiteStep`, `DodgeBurnStep`, `LevelsCurvesStep`, `HalftoneStep`, `ExportStep`).
+  - Implementation of shared layout primitives (e.g., `StepHeader`, `StepShell`) consistent with ADRs.
+- AI integration in the UI:
+  - Wiring `useAiAnalysis` into the appropriate steps.
+  - Rendering AI `notes`, `halftone` suggestions, warnings, `dotGainRisk`, and `recommendedEngraveSettings`.
+  - Differentiating between:
+    - Transport errors (hook `error`).
+    - Backend-declared errors (`success: false` with `error.code` and `error.message`).
+- Small helper hooks and utilities:
+  - Wizard navigation helpers.
+  - Responsive layout helpers.
+  - Pure formatting utilities for presenting AI hints.
+- Non-breaking refactors:
+  - Improving readability.
+  - Extracting presentational components.
+  - Cleaning up styles, as long as behavior is preserved.
+
+All of these changes must respect the backend contract and avoid introducing new dependencies or frameworks without discussion.
+
+---
+
+## 4. What AI agents must NOT do in this repo
+
+Prohibited changes:
+
+- Call OpenAI or other AI providers directly from the frontend.
+- Bypass `src/lib/api.ts` or `useAiAnalysis` to talk to the backend for AI analysis (except in clearly justified, explicitly requested edge cases).
+- Change the `{ success, analysis?, error? }` envelope shape or the `AiAnalysisResult` fields.
+- Introduce:
+  - New API endpoints.
+  - Client-side secret storage for image data beyond normal browser behavior.
+  - Hidden network calls that the user would not reasonably expect.
+- Copy provider-specific or secret-bearing code into the frontend.
+
+If a UX or contract change is needed:
+
+- Agents must point back to:
+  - `03-architecture-decisions.md`
+  - Project-level `AGENTS.md`
+- And recommend updating the docs before changing code.
+
+---
+
+## 5. UX expectations for AI hints
+
+When rendering AI output:
+
+- Treat all AI outputs as “starting points,” not guaranteed recipes.
+- Encourage:
+  - Test engravings on scrap wood.
+  - Adjustments based on material and personal taste.
+- Avoid:
+  - Overly authoritative language (“always,” “perfect,” “guaranteed”).
+  - Hiding uncertainty when fields are missing or low-confidence.
+
+The frontend should aim for clarity and trustworthiness: clear descriptions of what the AI suggests and why it might be helpful.
+
+---
+
+## 6. Git and Codex usage in this repo
+
+### 6.1 Git rules
+
+- Prefer:
+  - Small, focused commits (for example, “Wire Analysis summary into UploadStep”).
+  - Clear messages that describe user-facing changes or architectural steps.
+- Avoid:
+  - Force pushes to `main`.
+  - Sweeping refactors without explicit user approval and clear scope.
+  - Unnecessary churn on unrelated files (large formatting-only diffs).
+
+### 6.2 Codex session pattern (frontend)
+
+For any Codex session in this repo:
+
+1. **Bootstrap**  
+   First message should instruct Codex to:
+   - Read this `AGENTS.md` and the project-level `AGENTS.md`.
+   - Skim relevant sections of:
+     - `01-project-brief.md`
+     - `03-architecture-decisions.md`
+     - `04-backlog-and-roadmap.md` (especially Phase 5 and AI UX phases)
+   - Summarize:
+     - What this repo is for.
+     - What changes it is allowed and not allowed to make.
+     - How it will keep diffs small and reviewable.
+   - Then wait for a specific task.
+
+2. **Scope a single small task**  
+   - Examples:
+     - “Wire `useAiAnalysis` into Step 1 and show an Analysis summary.”
+     - “Create `StepHeader` and `StepShell` components and migrate Step 1 to use them.”
+   - Explicitly list which files Codex may edit and which it must not touch.
+
+3. **Review diffs before commit**  
+   - Check that:
+     - Contract-related types and envelope handling are unchanged, unless you explicitly asked for those changes and updated docs.
+     - No unexpected dependencies or big refactors appeared.
+
+4. **Commit discipline**  
+   - Only commit what you understand.
+   - Keep commits tightly scoped to the task you gave Codex.
+
+If any suggestion from Codex or ChatGPT conflicts with this file or the project-level `AGENTS.md`, the contracts and docs win. The assistant should point out the conflict and propose aligning the code, or explicitly escalate to Strategy for a contract change.
