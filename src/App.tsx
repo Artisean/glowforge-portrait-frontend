@@ -1,10 +1,7 @@
 import { useState } from "react";
 import "./App.css";
-import {
-  aiAnalyzePhoto,
-  type AiAnalyzePhotoResponse,
-  type AiAnalysisResult,
-} from "./lib/api";
+import { type AiAnalysisResult } from "./lib/api";
+import { useAiAnalysis } from "./hooks/useAiAnalysis";
 import { UploadStep } from "./steps/UploadStep";
 import { CropStep } from "./steps/CropStep";
 import { BlackAndWhiteStep } from "./steps/BlackAndWhiteStep";
@@ -130,9 +127,7 @@ function App() {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
 
   // Backend test harness / analysis state
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<AiAnalyzePhotoResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { loading, result, error, runAnalysis } = useAiAnalysis();
 
   function goToStep(stepId: StepId) {
     setCurrentStepId(stepId);
@@ -151,28 +146,10 @@ function App() {
   }
 
   async function handleTestClick() {
-    setLoading(true);
-    setResult(null);
-    setError(null);
-
-    try {
-      const payloadImageDataUrl =
-        imageDataUrl ?? "data:image/png;base64,stub";
-
-      const response = await aiAnalyzePhoto(payloadImageDataUrl, {
-        profile: "portrait",
-      });
-
-      setResult(response);
-      console.log("aiAnalyzePhoto response:", response);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : String(err);
-      setError(message);
-      console.error("aiAnalyzePhoto error:", err);
-    } finally {
-      setLoading(false);
-    }
+    await runAnalysis(
+      imageDataUrl ?? "data:image/png;base64,stub",
+      { profile: "portrait" }
+    );
   }
 
   const analysis =
