@@ -30,12 +30,14 @@ This file is the single HTTP client for `POST /api/ai-analyze-photo`:
 
 - Responsibilities:
   - Read `import.meta.env.VITE_API_BASE_URL`.
-  - Send `{ imageDataUrl, options }` as JSON to `/api/ai-analyze-photo`.
+  - Normalize the base URL (strip trailing slash) and call `/api/ai-analyze-photo`.
+  - Send `{ imageDataUrl, options }` as JSON.
   - Parse the response into the shared envelope:
     - `success: true` with `analysis: AiAnalysisResult`.
     - `success: false` with `error: { code, message }`.
 - Rules:
   - Components and hooks must not call `fetch` directly to the backend for AI analysis.
+  - Do **not** hard-code backend `.vercel.app` URLs anywhere in the UI; always go through `VITE_API_BASE_URL` and this client.
   - Any changes to the request/response shape must be driven by Strategy and ADR updates.
 
 ### 2.2 `src/hooks/useAiAnalysis.ts`
@@ -114,13 +116,14 @@ Prohibited changes:
   - Client-side secret storage for image data beyond normal browser behavior.
   - Hidden network calls that the user would not reasonably expect.
 - Copy provider-specific or secret-bearing code into the frontend.
+- Log or persist full `imageDataUrl` values anywhere other than transient in-memory state needed for the current session (no dumping huge data URLs to logs or analytics).
 
 If a UX or contract change is needed:
 
 - Agents must point back to:
   - `03-architecture-decisions.md`
   - Project-level `AGENTS.md`
-- And recommend updating the docs before changing code.
+- And recommend updating the docs (and running the QC-AGENTS ritual) before changing code.
 
 ---
 
@@ -156,32 +159,38 @@ The frontend should aim for clarity and trustworthiness: clear descriptions of w
 
 For any Codex session in this repo:
 
-1. **Bootstrap**  
-   First message should instruct Codex to:
+1. **Bootstrap (no edits in first response)**  
+   The very first Codex response **must not edit any files**.  
+   The bootstrap message should instruct Codex to:
    - Read this `AGENTS.md` and the project-level `AGENTS.md`.
    - Skim relevant sections of:
      - `01-project-brief.md`
      - `03-architecture-decisions.md`
      - `04-backlog-and-roadmap.md` (especially Phase 5 and AI UX phases)
-   - Summarize:
+   - Summarize, in its own words:
      - What this repo is for.
      - What changes it is allowed and not allowed to make.
      - How it will keep diffs small and reviewable.
-   - Then wait for a specific task.
+   - Ask any clarifying questions about the task.
+   - Explicitly confirm that it will not touch contracts or backend envelopes unless Strategy/ADRs say so.
 
 2. **Scope a single small task**  
-   - Examples:
-     - “Wire `useAiAnalysis` into Step 1 and show an Analysis summary.”
-     - “Create `StepHeader` and `StepShell` components and migrate Step 1 to use them.”
-   - Explicitly list which files Codex may edit and which it must not touch.
+   - You (the human) then reply with **one** small, concrete task and a list of files it may edit.  
+     - Examples:
+       - “Wire `useAiAnalysis` into Step 1 and show an Analysis summary.”
+       - “Create `StepHeader` and `StepShell` components and migrate Step 1 to use them.”
+     - Explicitly list which files Codex may edit and which it must not touch.
+   - Codex should keep the diff small and focused, avoiding widescale refactors or formatting changes.
 
 3. **Review diffs before commit**  
    - Check that:
-     - Contract-related types and envelope handling are unchanged, unless you explicitly asked for those changes and updated docs.
+     - Contract-related types and envelope handling are unchanged, unless you explicitly asked for those changes **and** updated docs.
      - No unexpected dependencies or big refactors appeared.
+   - If Codex suggests anything that conflicts with this AGENTS file or the project-level docs, it should call that out and propose syncing code to the docs or escalating to Strategy (QC-AGENTS) instead of silently changing the contract.
 
 4. **Commit discipline**  
    - Only commit what you understand.
    - Keep commits tightly scoped to the task you gave Codex.
+   - Use descriptive commit messages so future you can see what each Codex-assisted change did.
 
 If any suggestion from Codex or ChatGPT conflicts with this file or the project-level `AGENTS.md`, the contracts and docs win. The assistant should point out the conflict and propose aligning the code, or explicitly escalate to Strategy for a contract change.
