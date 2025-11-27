@@ -5,7 +5,7 @@ This repo contains the Vite React/TypeScript frontend for the Glowforge Portrait
 The backend lives in [Artisean/glowforge-ai-backend](https://github.com/Artisean/glowforge-ai-backend) and exposes `POST /api/ai-analyze-photo` with a stable `AiAnalysisResult` contract wrapped in an HTTP envelope:
 
 - Success: `{ "success": true, "analysis": { ...AiAnalysisResult } }`
-- Error: `{ "success": false, "error": { "code": string, "message": string } }`
+- Error: `{ "success": false", "error": { "code": string, "message": string } }`
 
 The frontend must treat this contract as stable and call it only through `src/lib/api.ts`.
 
@@ -37,16 +37,24 @@ To preview the production build locally:
 
 ## Environment configuration
 
-The frontend talks to the backend using an environment-based base URL. Create a `.env` file in the project root with:
+The frontend talks to the backend using an environment-based base URL.
 
-    VITE_API_BASE_URL=<your-backend-base-url>
+Preferred workflow:
+
+1. Copy the example env file:
+
+       cp .env.example .env.local
+
+2. Edit `.env.local` and set:
+
+       VITE_API_BASE_URL=<your-backend-base-url>
 
 Examples:
 
 - Local backend:  
   `VITE_API_BASE_URL=http://localhost:3000`
 - Deployed backend (Vercel):  
-  `VITE_API_BASE_URL=https://your-backend-app.vercel.app`
+  `VITE_API_BASE_URL=https://glowforge-ai-backend.vercel.app`
 
 `src/lib/api.ts` will construct the full endpoint:
 
@@ -106,11 +114,12 @@ Key files and folders (this will evolve as the wizard is implemented):
 - `src/App.tsx` – Top-level React component (wizard shell lives here or in a dedicated wrapper).
 - `src/index.css`, `src/App.css` – Styles.
 - `src/lib/` – Frontend library code:
-  - `src/lib/api.ts` (to be implemented) – single abstraction for calling the backend.
+  - `src/lib/api.ts` – single abstraction for calling the backend.
   - Optional `src/lib/types.ts` – shared frontend types mirroring `AiAnalysisResult`.
 - `src/steps/` – Step-specific screens (Upload, Crop, Black & White, Dodge & Burn, Levels/Curves, Halftone, Export).
 - `src/components/` – Reusable UI components.
 - `AGENTS.md` – Frontend-specific rules for AI agents (ChatGPT, Codex, etc.).
+- `CODEX-BOOTSTRAP.md` – Canonical Codex bootstrap prompt for this repo (kept in sync with the section below).
 
 Keep new files aligned with this structure when expanding the app.
 
@@ -174,6 +183,8 @@ Backend access rules:
 ---
 
 ## Codex bootstrap prompt (frontend)
+
+Note: the canonical copy of this prompt lives in `CODEX-BOOTSTRAP.md`. Keep this section in sync with that file.
 
 When starting a new Codex session attached to this repo, use a bootstrap message like:
 
