@@ -1,7 +1,7 @@
 export type WizardStepId =
   | "upload"
-  | "blackAndWhite"
   | "crop"
+  | "blackAndWhite"
   | "dodgeBurn"
   | "levelsCurves"
   | "halftone"
@@ -14,8 +14,8 @@ export interface WizardStep {
 
 export const STEPS: WizardStep[] = [
   { id: "upload", label: "1. Upload & Prep" },
-  { id: "blackAndWhite", label: "2. Black & White" },
-  { id: "crop", label: "3. Crop" },
+  { id: "crop", label: "2. Crop" },
+  { id: "blackAndWhite", label: "3. Black & White" },
   { id: "dodgeBurn", label: "4. Dodge & Burn" },
   { id: "levelsCurves", label: "5. Levels & Curves" },
   { id: "halftone", label: "6. Halftone" },

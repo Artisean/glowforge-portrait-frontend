@@ -53,6 +53,7 @@
 
   .step-shell-body {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
   .step-shell-footer {

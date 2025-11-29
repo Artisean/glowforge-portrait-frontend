@@ -1,27 +1,22 @@
-export type BlackAndWhiteChannels = {
-  reds: number;
-  yellows: number;
-  greens: number;
-  cyans: number;
-  blues: number;
-  magentas: number;
-};
-
 export interface BlackAndWhiteSettings {
-  channels: BlackAndWhiteChannels;
-  // Extend later with tone controls (e.g., contrast, midtones) as needed.
+  redChannel: number; // -100..100
+  greenChannel: number; // -100..100
+  blueChannel: number; // -100..100
+  exposure: number; // -2..2 (stops-like)
+  contrast: number; // -100..100
+  midtones: number; // -100..100 (gamma-ish)
+  preset?: "mapleSoft" | "highContrastTest" | string;
 }
 
-export const DEFAULT_BW_CHANNELS: BlackAndWhiteChannels = {
-  reds: 0,
-  yellows: 0,
-  greens: 0,
-  cyans: 0,
-  blues: 0,
-  magentas: 0,
+export const DEFAULT_BW_SETTINGS: BlackAndWhiteSettings = {
+  redChannel: 0,
+  greenChannel: 0,
+  blueChannel: 0,
+  exposure: 0,
+  contrast: 0,
+  midtones: 0,
+  preset: undefined,
 };
-
-const LUMA = { r: 0.299, g: 0.587, b: 0.114 };
 
 function clamp(value: number, min = 0, max = 255) {
   return Math.min(max, Math.max(min, value));
@@ -32,53 +27,32 @@ function loadImage(imageDataUrl: string): Promise<HTMLImageElement> {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () =>
-      reject(new Error("Could not load image for processing."));
+      reject(new Error("Could not load image for black & white processing."));
     img.src = imageDataUrl;
   });
 }
 
-function luminance(r: number, g: number, b: number) {
-  return r * LUMA.r + g * LUMA.g + b * LUMA.b;
+function applyExposure(luma: number, stops: number) {
+  const factor = Math.pow(2, stops);
+  return luma * factor;
 }
 
-function rgbToHue(r: number, g: number, b: number): number {
-  const rn = r / 255;
-  const gn = g / 255;
-  const bn = b / 255;
-  const max = Math.max(rn, gn, bn);
-  const min = Math.min(rn, gn, bn);
-  const delta = max - min;
-
-  if (delta === 0) return 0;
-
-  let hue = 0;
-  if (max === rn) {
-    hue = ((gn - bn) / delta) % 6;
-  } else if (max === gn) {
-    hue = (bn - rn) / delta + 2;
-  } else {
-    hue = (rn - gn) / delta + 4;
-  }
-
-  return ((hue * 60 + 360) % 360);
+function applyContrast(luma: number, contrast: number) {
+  const c = clamp(contrast, -100, 100) / 100;
+  const factor = (1 + c);
+  // Centered contrast adjustment around mid-gray (0.5)
+  const normalized = luma / 255;
+  const adjusted = 0.5 + (normalized - 0.5) * factor;
+  return adjusted * 255;
 }
 
-function channelForHue(hue: number): keyof BlackAndWhiteChannels {
-  if (hue < 30 || hue >= 330) return "reds";
-  if (hue < 90) return "yellows";
-  if (hue < 150) return "greens";
-  if (hue < 210) return "cyans";
-  if (hue < 270) return "blues";
-  return "magentas";
-}
-
-/**
- * Slider range is -100..100; factor is centered at 1 so 0 keeps luminance as-is.
- * -100 darkens to 50% of original, +100 brightens to 150%.
- */
-function scaleLuminance(base: number, slider: number) {
-  const factor = 1 + slider / 200;
-  return clamp(base * factor);
+function applyMidtones(luma: number, midtones: number) {
+  const m = clamp(midtones, -100, 100) / 100;
+  // Gamma-like adjustment: >0 lifts midtones, <0 deepens
+  const gamma = m >= 0 ? 1 / (1 + m) : 1 + Math.abs(m);
+  const normalized = luma / 255;
+  const adjusted = Math.pow(normalized, gamma);
+  return adjusted * 255;
 }
 
 export async function applyBlackAndWhite(
@@ -91,25 +65,33 @@ export async function applyBlackAndWhite(
   canvas.height = img.naturalHeight || img.height;
 
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas context unavailable.");
+  if (!ctx) {
+    throw new Error("Canvas context unavailable.");
+  }
 
   ctx.drawImage(img, 0, 0);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
+
+  const rWeight = 0.299 + (settings.redChannel / 100) * 0.299;
+  const gWeight = 0.587 + (settings.greenChannel / 100) * 0.587;
+  const bWeight = 0.114 + (settings.blueChannel / 100) * 0.114;
+  const weightSum = rWeight + gWeight + bWeight || 1;
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
 
-    const hue = rgbToHue(r, g, b);
-    const channel = channelForHue(hue);
-    const baseLuma = luminance(r, g, b);
-    const adjusted = scaleLuminance(baseLuma, settings.channels[channel]);
+    let luma = (r * rWeight + g * gWeight + b * bWeight) / weightSum;
+    luma = applyExposure(luma, settings.exposure);
+    luma = applyContrast(luma, settings.contrast);
+    luma = applyMidtones(luma, settings.midtones);
+    const finalLuma = clamp(luma);
 
-    data[i] = adjusted;
-    data[i + 1] = adjusted;
-    data[i + 2] = adjusted;
+    data[i] = finalLuma;
+    data[i + 1] = finalLuma;
+    data[i + 2] = finalLuma;
     // alpha unchanged
   }
 
@@ -126,7 +108,9 @@ export async function calculateLuminanceHistogram(
   canvas.height = img.naturalHeight || img.height;
 
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas context unavailable.");
+  if (!ctx) {
+    throw new Error("Canvas context unavailable.");
+  }
 
   ctx.drawImage(img, 0, 0);
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -135,7 +119,7 @@ export async function calculateLuminanceHistogram(
   const bins = new Array(256).fill(0);
 
   for (let i = 0; i < data.length; i += 4) {
-    const luma = Math.round(luminance(data[i], data[i + 1], data[i + 2]));
+    const luma = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
     bins[luma] += 1;
   }
 

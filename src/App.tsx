@@ -1,7 +1,7 @@
 import "./App.css";
 import { WizardProvider, useWizard } from "./contexts/WizardContext";
 import { STEPS } from "./lib/wizardConfig";
-import { Step2BlackAndWhite } from "./steps/Step2BlackAndWhite";
+import { BlackAndWhiteStep } from "./steps/BlackAndWhiteStep";
 import { UploadStep } from "./steps/UploadStep";
 import { CropStep } from "./steps/CropStep";
 import { DodgeBurnStep } from "./steps/DodgeBurnStep";
@@ -20,10 +20,10 @@ function WizardContent() {
     switch (currentStepId) {
       case "upload":
         return <UploadStep />;
-      case "blackAndWhite":
-        return <Step2BlackAndWhite />;
       case "crop":
         return <CropStep />;
+      case "blackAndWhite":
+        return <BlackAndWhiteStep />;
       case "dodgeBurn":
         return <DodgeBurnStep />;
       case "levelsCurves":

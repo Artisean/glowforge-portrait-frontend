@@ -4,94 +4,9 @@ import { useAiAnalysis } from "../hooks/useAiAnalysis";
 import { useWizard } from "../contexts/WizardContext";
 import { StepShell } from "../components/layout/StepShell";
 import { getStepNumber, TOTAL_STEPS } from "../lib/wizardConfig";
-import { type AiAnalysisResult } from "../lib/api";
+import { AiAnalysisSummaryCard } from "../components/ai/AiAnalysisSummaryCard";
 
 const STEP_NUMBER = getStepNumber("upload");
-
-function AnalysisSummary({ analysis }: { analysis: AiAnalysisResult }) {
-  const {
-    notes,
-    halftone,
-    highlightWarning,
-    shadowWarning,
-    dotGainRisk,
-    recommendedEngraveSettings,
-  } = analysis;
-
-  return (
-    <div
-      style={{
-        marginTop: "1rem",
-        padding: "1rem",
-        borderRadius: "0.75rem",
-        border: "1px solid #444",
-        background: "#151515",
-        textAlign: "left",
-      }}
-    >
-      <h4 style={{ marginTop: 0, marginBottom: "0.5rem" }}>
-        Analysis summary
-      </h4>
-
-      {Array.isArray(notes) && notes.length > 0 && (
-        <div style={{ marginBottom: "0.75rem" }}>
-          <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>
-            Notes:
-          </div>
-          <ul style={{ paddingLeft: "1.25rem", margin: 0 }}>
-            {notes.map((note, idx) => (
-              <li key={idx}>{note}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {halftone && (
-        <div style={{ marginBottom: "0.5rem" }}>
-          <div style={{ fontWeight: 600 }}>Halftone suggestion:</div>
-          <div>
-            {halftone.outputDpi} dpi, {halftone.lpi} LPI, angle{" "}
-            {halftone.angleDeg} deg, shape "{String(halftone.shape)}"
-          </div>
-        </div>
-      )}
-
-      {(highlightWarning?.hasIssue || shadowWarning?.hasIssue) && (
-        <div style={{ marginBottom: "0.5rem" }}>
-          <div style={{ fontWeight: 600 }}>Warnings:</div>
-          <ul style={{ paddingLeft: "1.25rem", margin: 0 }}>
-            {highlightWarning?.hasIssue && (
-              <li>{highlightWarning.message}</li>
-            )}
-            {shadowWarning?.hasIssue && <li>{shadowWarning.message}</li>}
-          </ul>
-        </div>
-      )}
-
-      {dotGainRisk && (
-        <div style={{ marginBottom: "0.5rem" }}>
-          <div style={{ fontWeight: 600 }}>Dot gain risk:</div>
-          <div>
-            Level: {dotGainRisk.level} - {dotGainRisk.message}
-          </div>
-        </div>
-      )}
-
-      {recommendedEngraveSettings && (
-        <div>
-          <div style={{ fontWeight: 600 }}>Recommended engrave settings:</div>
-          <div>
-            Speed {recommendedEngraveSettings.speed}, power{" "}
-            {recommendedEngraveSettings.power}, {recommendedEngraveSettings.lpi}{" "}
-            LPI, {recommendedEngraveSettings.passes} pass
-            {recommendedEngraveSettings.passes !== 1 ? "es" : ""},{" "}
-            focus {recommendedEngraveSettings.focus}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function UploadStep() {
   const {
@@ -107,6 +22,8 @@ export function UploadStep() {
   useEffect(() => {
     if (result && result.success) {
       setAnalysis(result.analysis);
+    } else if (result && !result.success) {
+      setAnalysis(null);
     }
   }, [result, setAnalysis]);
 
@@ -229,6 +146,9 @@ export function UploadStep() {
           borderRadius: "0.75rem",
           border: "1px solid #333",
           background: "#131313",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
         }}
       >
         <h4 style={{ margin: "0 0 0.5rem 0" }}>Analyze Photo (Backend Stub)</h4>
@@ -285,7 +205,13 @@ export function UploadStep() {
           </pre>
         )}
 
-        {analysis && <AnalysisSummary analysis={analysis} />}
+        <AiAnalysisSummaryCard analysis={analysis} />
+        {!analysis && (error || backendError) && (
+          <div style={{ marginTop: "0.25rem", opacity: 0.8 }}>
+            We couldn’t load AI hints this time. You can still proceed manually and run a
+            small test engraving on scrap.
+          </div>
+        )}
       </div>
     </div>
   );
